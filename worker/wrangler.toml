@@ -1,0 +1,11 @@
+name = "cf-clash-vpn"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# 使用自己的域名时取消下面的注释，并把域名改成已托管在 Cloudflare 上的主机名。
+# routes = [
+#   { pattern = "vpn.example.com", custom_domain = true }
+# ]
+
+# UUID 不要写进这个文件。部署前执行：npx wrangler secret put UUID
