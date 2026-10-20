@@ -25,7 +25,7 @@ npx wrangler secret put UUID
 
 `wrangler secret put UUID` 时粘贴上一步打印的 UUID。
 
-有自己的域名时，编辑 [worker/wrangler.toml](worker/wrangler.toml)，取消 `routes` 注释并改成你的主机名。域名在 Cloudflare 上由 Worker 路由接管，证书自动签发。没有域名就保持 `workers_dev = true`。
+自定义域名是 `vpn.lm191549149.me`，已经写在 [worker/wrangler.toml](worker/wrangler.toml) 里。域名在 Cloudflare 上由 Worker 路由接管，证书自动签发。`workers.dev` 地址仍然可用。
 
 ```bash
 npx wrangler deploy
