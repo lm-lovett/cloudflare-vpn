@@ -39,6 +39,46 @@ if (!UUID_RE.test(uuid)) {
   process.exit(2);
 }
 
+const ports = [8443, 2053, 2083, 2087, 2096, 443];
+// These anycast addresses reach this hostname on 8443. They give Clash another
+// path when the address returned by DNS times out.
+const edgeAddresses = [
+  "104.16.160.1",
+  "104.18.32.1",
+  "104.19.192.1",
+  "172.64.148.78",
+  "172.67.74.102",
+];
+
+function proxyBlock(name, server, port) {
+  return `  - name: ${name}
+    type: vless
+    server: ${server}
+    port: ${port}
+    uuid: ${uuid}
+    udp: false
+    tls: true
+    servername: ${domain}
+    client-fingerprint: chrome
+    network: ws
+    ip-version: ipv4
+    ws-opts:
+      path: /${uuid}
+      headers:
+        Host: ${domain}`;
+}
+
+const proxies = [
+  ...ports.map((port) => proxyBlock(`CF-${port}`, domain, port)),
+  ...edgeAddresses.map((address) =>
+    proxyBlock(`CF-${address}`, address, 8443),
+  ),
+];
+const proxyNames = [
+  ...ports.map((port) => `CF-${port}`),
+  ...edgeAddresses.map((address) => `CF-${address}`),
+];
+
 const yaml = `mixed-port: 7890
 allow-lan: false
 mode: rule
@@ -60,6 +100,8 @@ dns:
     - "*.local"
     - "+.msftconnecttest.com"
     - "+.msftncsi.com"
+    - "${domain}"
+    - "+.${domain}"
   default-nameserver:
     - 223.5.5.5
     - 119.29.29.29
@@ -77,29 +119,27 @@ dns:
     geoip-code: CN
 
 proxies:
-  - name: CF-VLESS
-    type: vless
-    server: ${domain}
-    port: 443
-    uuid: ${uuid}
-    udp: false
-    tls: true
-    servername: ${domain}
-    client-fingerprint: chrome
-    network: ws
-    ws-opts:
-      path: /${uuid}
-      headers:
-        Host: ${domain}
+${proxies.join("\n")}
 
 proxy-groups:
   - name: PROXY
-    type: select
+    type: url-test
     proxies:
-      - CF-VLESS
-      - DIRECT
+${proxyNames.map((name) => `      - ${name}`).join("\n")}
+    url: http://www.gstatic.com/generate_204
+    interval: 300
+    timeout: 5
+    tolerance: 50
+    lazy: false
 
 rules:
+  - DOMAIN,${domain},DIRECT
+  - DOMAIN-SUFFIX,google.com,PROXY
+  - DOMAIN-SUFFIX,googleapis.com,PROXY
+  - DOMAIN-SUFFIX,gstatic.com,PROXY
+  - DOMAIN-SUFFIX,googleusercontent.com,PROXY
+  - DOMAIN-SUFFIX,ggpht.com,PROXY
+  - DOMAIN-KEYWORD,google,PROXY
   - GEOIP,private,DIRECT,no-resolve
   - GEOSITE,cn,DIRECT
   - GEOIP,CN,DIRECT

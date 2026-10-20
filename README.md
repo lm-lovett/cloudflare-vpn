@@ -45,7 +45,7 @@ node scripts/generate-profile.mjs --domain <域名> --uuid <UUID>
 
 配置内容：
 
-- 节点 `CF-VLESS`：`vless` + WebSocket + TLS 443，指纹 `chrome`，只走 TCP
+- 同一节点会生成 443、8443、2053、2083、2087、2096 以及几个 Cloudflare 入口地址。`PROXY` 会自动选用能连上的那个。默认的 443 地址在部分网络上会超时
 - `mode: rule`，并下载 mihomo 的 geoip / geosite
 - DNS 使用 fake-ip。国内解析用 `223.5.5.5` 和 `119.29.29.29`。境外 fallback 使用 `1.1.1.1` 和 `8.8.8.8` 的 DoT，并经由 `PROXY` 发出
 - 私有地址、`GEOSITE,cn`、`GEOIP,CN` 直连，其余走代理
