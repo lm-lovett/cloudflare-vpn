@@ -1,0 +1,10 @@
+name = "cf-clash-vpn"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+routes = [
+  { pattern = "vpn.lm191549149.me", custom_domain = true }
+]
+
+# UUID 不要写进这个文件。部署前执行：npx wrangler secret put UUID
