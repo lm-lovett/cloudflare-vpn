@@ -43,11 +43,20 @@ const ports = [8443, 2053, 2083, 2087, 2096, 443];
 // These anycast addresses reach this hostname on 8443. They give Clash another
 // path when the address returned by DNS times out.
 const edgeAddresses = [
+  "104.16.0.1",
   "104.16.160.1",
+  "104.17.128.1",
   "104.18.32.1",
   "104.19.192.1",
+  "104.20.0.1",
+  "104.21.64.1",
+  "104.24.0.1",
+  "104.26.0.1",
+  "162.159.128.1",
   "172.64.148.78",
+  "172.66.0.1",
   "172.67.74.102",
+  "188.114.96.1",
 ];
 
 function proxyBlock(name, server, port) {
@@ -63,7 +72,9 @@ function proxyBlock(name, server, port) {
     network: ws
     ip-version: ipv4
     ws-opts:
-      path: /${uuid}
+      path: /${uuid}?ed=2048
+      max-early-data: 2048
+      early-data-header-name: Sec-WebSocket-Protocol
       headers:
         Host: ${domain}`;
 }
@@ -129,7 +140,7 @@ ${proxyNames.map((name) => `      - ${name}`).join("\n")}
     url: http://www.gstatic.com/generate_204
     interval: 300
     timeout: 5
-    tolerance: 50
+    tolerance: 20
     lazy: false
 
 rules:

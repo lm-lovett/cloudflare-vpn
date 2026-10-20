@@ -113,3 +113,20 @@ export function parseVlessRequest(
 export function vlessResponseHeader(): Uint8Array {
   return new Uint8Array([0, 0]);
 }
+
+// Clash puts the first VLESS bytes in Sec-WebSocket-Protocol as raw URL-safe base64.
+export function decodeEarlyData(header: string | null): Uint8Array | null {
+  if (!header) return null;
+  const token = header.split(",")[0]?.trim() ?? "";
+  if (!token || !/^[A-Za-z0-9_-]+$/.test(token)) return null;
+  const padded = token + "=".repeat((4 - (token.length % 4)) % 4);
+  const standard = padded.replaceAll("-", "+").replaceAll("_", "/");
+  try {
+    const binary = atob(standard);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    return out.byteLength > 0 ? out : null;
+  } catch {
+    return null;
+  }
+}

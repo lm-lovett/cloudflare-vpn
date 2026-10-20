@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  decodeEarlyData,
   normalizeUuid,
   parseVlessRequest,
   uuidToBytes,
@@ -214,6 +215,16 @@ describe("parseVlessRequest", () => {
         "not-a-uuid",
       ),
     ).toEqual({ ok: false, reason: "invalid" });
+  });
+});
+
+describe("decodeEarlyData", () => {
+  it("decodes raw url-safe base64 and ignores other protocol names", () => {
+    const bytes = new Uint8Array([0, 1, 2, 250, 255]);
+    const token = Buffer.from(bytes).toString("base64url");
+    expect(decodeEarlyData(token)).toEqual(bytes);
+    expect(decodeEarlyData("not a protocol")).toBeNull();
+    expect(decodeEarlyData(null)).toBeNull();
   });
 });
 

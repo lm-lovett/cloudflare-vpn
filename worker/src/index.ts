@@ -1,5 +1,6 @@
 import { connect } from "cloudflare:sockets";
 import {
+  decodeEarlyData,
   normalizeUuid,
   parseVlessRequest,
   vlessResponseHeader,
@@ -168,22 +169,27 @@ async function relay(
   }
 }
 
-async function proxyConnection(ws: WebSocket, uuid: string): Promise<void> {
+async function proxyConnection(
+  ws: WebSocket,
+  uuid: string,
+  early: Uint8Array | null,
+): Promise<void> {
   const queue = new MessageQueue();
+  if (early) queue.push(early);
+  let incoming = Promise.resolve();
   ws.addEventListener("message", (event: MessageEvent) => {
-    void toBytes(event.data)
-      .then((bytes) => {
-        if (!bytes) {
-          queue.close();
-          closeQuietly(ws, 1003, "binary only");
-          return;
-        }
-        queue.push(bytes);
-      })
-      .catch(() => {
+    incoming = incoming.then(async () => {
+      const bytes = await toBytes(event.data);
+      if (!bytes) {
         queue.close();
         closeQuietly(ws, 1003, "binary only");
-      });
+        return;
+      }
+      queue.push(bytes);
+    }).catch(() => {
+      queue.close();
+      closeQuietly(ws, 1003, "binary only");
+    });
   });
   ws.addEventListener("close", () => queue.close());
   ws.addEventListener("error", () => queue.close());
@@ -205,12 +211,13 @@ async function proxyConnection(ws: WebSocket, uuid: string): Promise<void> {
   let socket: ReturnType<typeof connect>;
   try {
     socket = connect({ hostname: request.address, port: request.port });
-    await socket.opened;
   } catch {
     closeQuietly(ws, 1011, "connect failed");
     return;
   }
 
+  // Reply before the outbound handshake finishes so the client can send the
+  // next flight while Cloudflare is still connecting to the target.
   try {
     ws.send(vlessResponseHeader());
   } catch {
@@ -241,14 +248,18 @@ export default {
       return new Response("websocket required", { status: 426 });
     }
 
+    const earlyProtocol = request.headers.get("Sec-WebSocket-Protocol");
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
     server.accept();
     ctx.waitUntil(
-      proxyConnection(server, uuid).catch(() => {
+      proxyConnection(server, uuid, decodeEarlyData(earlyProtocol)).catch(() => {
         closeQuietly(server, 1011, "proxy failed");
       }),
     );
-    return new Response(null, { status: 101, webSocket: client });
+    const headers = new Headers();
+    const selectedProtocol = earlyProtocol?.split(",")[0]?.trim();
+    if (selectedProtocol) headers.set("Sec-WebSocket-Protocol", selectedProtocol);
+    return new Response(null, { status: 101, webSocket: client, headers });
   },
 } satisfies ExportedHandler<Env>;
