@@ -49,9 +49,36 @@ function concat(left: Uint8Array, right: Uint8Array): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-function toBytes(data: unknown): Uint8Array | null {
-  if (data instanceof Uint8Array) return data;
-  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+function copyBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy;
+}
+
+function isBlob(data: unknown): data is Blob {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    Object.prototype.toString.call(data) === "[object Blob]" &&
+    "arrayBuffer" in data
+  );
+}
+
+async function toBytes(data: unknown): Promise<Uint8Array<ArrayBuffer> | null> {
+  if (typeof data === "string") return null;
+  if (isBlob(data)) return copyBytes(new Uint8Array(await data.arrayBuffer()));
+  if (
+    data instanceof ArrayBuffer ||
+    Object.prototype.toString.call(data) === "[object ArrayBuffer]"
+  ) {
+    return copyBytes(new Uint8Array(data as ArrayBuffer));
+  }
+  if (ArrayBuffer.isView(data)) {
+    const view = data as ArrayBufferView;
+    return copyBytes(
+      new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
+    );
+  }
   return null;
 }
 
@@ -144,13 +171,19 @@ async function relay(
 async function proxyConnection(ws: WebSocket, uuid: string): Promise<void> {
   const queue = new MessageQueue();
   ws.addEventListener("message", (event: MessageEvent) => {
-    const bytes = toBytes(event.data);
-    if (!bytes) {
-      queue.close();
-      closeQuietly(ws, 1003, "binary only");
-      return;
-    }
-    queue.push(bytes);
+    void toBytes(event.data)
+      .then((bytes) => {
+        if (!bytes) {
+          queue.close();
+          closeQuietly(ws, 1003, "binary only");
+          return;
+        }
+        queue.push(bytes);
+      })
+      .catch(() => {
+        queue.close();
+        closeQuietly(ws, 1003, "binary only");
+      });
   });
   ws.addEventListener("close", () => queue.close());
   ws.addEventListener("error", () => queue.close());
